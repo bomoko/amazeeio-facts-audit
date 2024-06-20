@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/uselagoon/lagoon-facts-app/utils"
 )
@@ -23,10 +24,10 @@ type composerShowOutput struct {
 }
 
 func (p *applicationGatherer) AppliesToEnvironment() bool {
-	a := []string{"drupal/core", "laravel/framework"}
-
 	applies := false
 
+	a := []string{"drupal/core", "laravel/framework"}
+	// Check composer show
 	for _, name := range a {
 		err, _, stdOut := utils.Shellout(fmt.Sprintf("composer show -i --format=json %v 2> /dev/null", name))
 
@@ -47,10 +48,35 @@ func (p *applicationGatherer) AppliesToEnvironment() bool {
 				Source:      "application_via_composer",
 				Description: result.Description,
 				Category:    Application,
+				KeyFact: true,
 			})
 		}
 
 		applies = true
+	}
+
+	// Check for wordpress
+	wpErr, wpStdOut, _ := utils.Shellout("wp core version 2> /dev/null")
+	if wpStdOut != "" {
+		if wpErr != nil {
+			log.Println(wpErr)
+		}
+
+		version := strings.TrimSuffix(wpStdOut, "\n")
+
+		if version != "" {
+			log.Printf("Found wordpress version %s", version)
+			p.GatheredFacts = append(p.GatheredFacts, GatheredFact{
+				Name:        "wordpress",
+				Value:       version,
+				Source:      "application_via_cli",
+				Description: "The current version of Wordpress that is running",
+				Category:    Framework,
+				KeyFact: true,
+			})
+
+			applies = true
+		}
 	}
 
 	return applies
